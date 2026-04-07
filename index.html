@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>⛽ Fuel & LPG Analytics — India</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0A0E1A;
+    --surface: #111827;
+    --surface2: #1A2236;
+    --border: #1E2D45;
+    --accent: #00D4FF;
+    --accent2: #FF6B35;
+    --accent3: #00FF87;
+    --danger: #FF3B5C;
+    --warning: #FFB800;
+    --text: #E8EDF5;
+    --text2: #8B9BB4;
+    --text3: #4A5A72;
+    --font-head: 'Syne', sans-serif;
+    --font-body: 'Space Grotesk', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-body); min-height: 100vh; overflow-x: hidden; }
+
+  /* NOISE TEXTURE OVERLAY */
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    opacity: 0.4;
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0; width: 240px;
+    background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; z-index: 100;
+    padding: 0;
+  }
+  .sidebar-logo {
+    padding: 28px 24px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo-icon { font-size: 28px; }
+  .logo-title {
+    font-family: var(--font-head); font-size: 14px; font-weight: 800;
+    color: var(--text); letter-spacing: 0.05em; line-height: 1.2;
+    margin-top: 8px;
+  }
+  .logo-sub { font-size: 10px; color: var(--text3); letter-spacing: 0.2em; text-transform: uppercase; margin-top: 2px; font-family: var(--font-mono); }
+
+  .nav-section { padding: 20px 12px 8px; }
+  .nav-label { font-size: 9px; color: var(--text3); letter-spacing: 0.25em; text-transform: uppercase; font-family: var(--font-mono); padding: 0 12px; margin-bottom: 8px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 8px; cursor: pointer;
+    font-size: 13px; font-weight: 500; color: var(--text2);
+    transition: all 0.2s; border: 1px solid transparent; margin-bottom: 2px;
+  }
+  .nav-item:hover { background: var(--surface2); color: var(--text); border-color: var(--border); }
+  .nav-item.active { background: rgba(0,212,255,0.08); color: var(--accent); border-color: rgba(0,212,255,0.2); }
+  .nav-item .nav-icon { width: 18px; text-align: center; font-size: 16px; }
+  .nav-item .nav-badge {
+    margin-left: auto; background: var(--danger); color: white;
+    font-size: 9px; font-family: var(--font-mono); padding: 2px 6px;
+    border-radius: 10px; font-weight: 600;
+  }
+
+  .sidebar-footer {
+    margin-top: auto; padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    font-size: 10px; color: var(--text3); font-family: var(--font-mono);
+    line-height: 1.8;
+  }
+  .status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent3); margin-right: 6px; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+
+  /* MAIN */
+  .main { margin-left: 240px; min-height: 100vh; position: relative; z-index: 1; }
+
+  /* TOPBAR */
+  .topbar {
+    padding: 16px 32px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(17,24,39,0.8); backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 50;
+  }
+  .topbar-title { font-family: var(--font-head); font-size: 20px; font-weight: 800; }
+  .topbar-meta { font-size: 11px; color: var(--text3); font-family: var(--font-mono); margin-top: 2px; }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .live-badge {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(0,255,135,0.1); border: 1px solid rgba(0,255,135,0.3);
+    color: var(--accent3); font-size: 10px; font-family: var(--font-mono);
+    padding: 5px 12px; border-radius: 20px; font-weight: 600; letter-spacing: 0.1em;
+  }
+  .date-badge {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text2); font-size: 11px; font-family: var(--font-mono);
+    padding: 5px 12px; border-radius: 6px;
+  }
+
+  /* CONTENT */
+  .content { padding: 28px 32px; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* SECTION HEADER */
+  .section-header { margin-bottom: 24px; }
+  .section-title { font-family: var(--font-head); font-size: 28px; font-weight: 800; line-height: 1; }
+  .section-title span { color: var(--accent); }
+  .section-sub { color: var(--text2); font-size: 13px; margin-top: 6px; }
+
+  /* KPI GRID */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; position: relative; overflow: hidden;
+    transition: all 0.2s;
+  }
+  .kpi-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  }
+  .kpi-card.blue::before { background: linear-gradient(90deg, var(--accent), transparent); }
+  .kpi-card.orange::before { background: linear-gradient(90deg, var(--accent2), transparent); }
+  .kpi-card.green::before { background: linear-gradient(90deg, var(--accent3), transparent); }
+  .kpi-card.red::before { background: linear-gradient(90deg, var(--danger), transparent); }
+  .kpi-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .kpi-label { font-size: 10px; color: var(--text3); letter-spacing: 0.2em; text-transform: uppercase; font-family: var(--font-mono); margin-bottom: 12px; }
+  .kpi-value { font-family: var(--font-mono); font-size: 32px; font-weight: 600; color: var(--text); line-height: 1; }
+  .kpi-unit { font-size: 14px; color: var(--text2); }
+  .kpi-change { display: flex; align-items: center; gap: 4px; margin-top: 10px; font-size: 12px; font-family: var(--font-mono); }
+  .kpi-change.up { color: var(--danger); }
+  .kpi-change.down { color: var(--accent3); }
+  .kpi-change.neutral { color: var(--text3); }
+  .kpi-icon { position: absolute; right: 16px; top: 16px; font-size: 28px; opacity: 0.15; }
+
+  /* CHART CARDS */
+  .chart-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px;
+  }
+  .chart-title { font-family: var(--font-head); font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .chart-sub { font-size: 11px; color: var(--text3); font-family: var(--font-mono); margin-bottom: 16px; }
+  .chart-wrap { position: relative; height: 220px; }
+
+  /* GRID 3 */
+  .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 24px; }
+  .grid-2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; margin-bottom: 24px; }
+
+  /* MINI STAT */
+  .mini-stat {
+    background: var(--surface2); border-radius: 8px; padding: 14px 16px;
+    display: flex; justify-content: space-between; align-items: center;
+    border: 1px solid var(--border); margin-bottom: 8px;
+  }
+  .mini-stat-label { font-size: 12px; color: var(--text2); }
+  .mini-stat-val { font-family: var(--font-mono); font-size: 14px; font-weight: 600; }
+
+  /* TABLE */
+  .table-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden; margin-bottom: 24px;
+  }
+  .table-head {
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { background: var(--surface2); }
+  thead th {
+    padding: 12px 16px; text-align: left;
+    font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--text3); font-family: var(--font-mono); font-weight: 600;
+    border-bottom: 1px solid var(--border);
+  }
+  thead th:last-child { text-align: right; }
+  tbody tr { border-bottom: 1px solid rgba(30,45,69,0.5); transition: background 0.15s; }
+  tbody tr:hover { background: var(--surface2); }
+  tbody tr:last-child { border-bottom: none; }
+  td { padding: 12px 16px; font-size: 13px; }
+  td:last-child { text-align: right; }
+  td.mono { font-family: var(--font-mono); font-size: 13px; }
+  .rank { font-family: var(--font-mono); font-size: 11px; color: var(--text3); }
+
+  /* BADGES */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px; font-size: 10px;
+    font-family: var(--font-mono); font-weight: 600; letter-spacing: 0.05em;
+  }
+  .badge.red { background: rgba(255,59,92,0.15); color: var(--danger); border: 1px solid rgba(255,59,92,0.3); }
+  .badge.yellow { background: rgba(255,184,0,0.15); color: var(--warning); border: 1px solid rgba(255,184,0,0.3); }
+  .badge.green { background: rgba(0,255,135,0.12); color: var(--accent3); border: 1px solid rgba(0,255,135,0.3); }
+  .badge.blue { background: rgba(0,212,255,0.12); color: var(--accent); border: 1px solid rgba(0,212,255,0.3); }
+
+  /* STRESS BAR */
+  .stress-bar-wrap { width: 80px; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .stress-bar { height: 100%; border-radius: 3px; transition: width 0.3s; }
+
+  /* ALERT FEED */
+  .alert-item {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 20px; margin-bottom: 12px;
+    display: flex; gap: 16px; align-items: flex-start;
+    transition: all 0.2s;
+  }
+  .alert-item:hover { border-color: var(--border); transform: translateX(4px); }
+  .alert-item.high { border-left: 3px solid var(--danger); }
+  .alert-item.medium { border-left: 3px solid var(--warning); }
+  .alert-item.low { border-left: 3px solid var(--accent3); }
+  .alert-icon { font-size: 20px; margin-top: 2px; }
+  .alert-body { flex: 1; }
+  .alert-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .alert-meta { font-size: 11px; color: var(--text3); font-family: var(--font-mono); }
+  .alert-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .alert-time { font-size: 10px; color: var(--text3); font-family: var(--font-mono); }
+
+  /* NEWS GRID */
+  .news-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 24px; }
+  .news-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden; transition: all 0.2s; cursor: pointer;
+  }
+  .news-card:hover { border-color: rgba(0,212,255,0.4); transform: translateY(-3px); }
+  .news-img { width: 100%; height: 160px; object-fit: cover; filter: brightness(0.85) saturate(0.9); }
+  .news-body { padding: 16px; }
+  .news-source { font-size: 10px; color: var(--text3); font-family: var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .news-headline { font-size: 13px; font-weight: 600; line-height: 1.5; margin-bottom: 10px; }
+  .news-footer { display: flex; justify-content: space-between; align-items: center; }
+  .news-time { font-size: 10px; color: var(--text3); font-family: var(--font-mono); }
+
+  /* DONUT PLACEHOLDER */
+  .donut-wrap { position: relative; height: 200px; display: flex; align-items: center; justify-content: center; }
+
+  /* FILTER ROW */
+  .filter-row { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .filter-btn {
+    padding: 7px 16px; border-radius: 6px; font-size: 12px; font-family: var(--font-mono);
+    border: 1px solid var(--border); background: var(--surface2); color: var(--text2);
+    cursor: pointer; transition: all 0.2s; font-weight: 500;
+  }
+  .filter-btn:hover, .filter-btn.active { background: rgba(0,212,255,0.1); color: var(--accent); border-color: rgba(0,212,255,0.4); }
+
+  /* SPARKLINE SVG */
+  .sparkline { display: block; }
+
+  /* AFFORDABILITY METER */
+  .afford-meter {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; margin-bottom: 16px;
+  }
+  .afford-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .afford-bar-track { height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; margin-bottom: 6px; }
+  .afford-bar-fill { height: 100%; border-radius: 4px; }
+  .afford-label { font-size: 12px; color: var(--text2); }
+  .afford-val { font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
+
+  /* SCROLL */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ANIMATED ENTRANCE */
+  @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  .kpi-card, .chart-card, .alert-item, .news-card { animation: fadeUp 0.4s ease both; }
+  .kpi-card:nth-child(1) { animation-delay: 0.05s; }
+  .kpi-card:nth-child(2) { animation-delay: 0.10s; }
+  .kpi-card:nth-child(3) { animation-delay: 0.15s; }
+  .kpi-card:nth-child(4) { animation-delay: 0.20s; }
+
+  /* INDIA MAP SVG PLACEHOLDER */
+  .map-placeholder {
+    background: var(--surface2); border-radius: 10px; height: 300px;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 12px; color: var(--text3);
+    border: 1px dashed var(--border);
+  }
+  .map-placeholder .map-icon { font-size: 48px; opacity: 0.3; }
+
+  /* FULL CHART */
+  .full-chart { margin-bottom: 24px; }
+  .full-chart .chart-wrap { height: 280px; }
+
+  /* TAG */
+  .tag { display: inline-block; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; font-size: 10px; font-family: var(--font-mono); color: var(--text3); }
+
+  /* FORECAST CARD */
+  .forecast-strip {
+    display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 24px;
+  }
+  .forecast-day {
+    min-width: 80px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 10px; text-align: center;
+  }
+  .forecast-day .f-day { font-size: 10px; color: var(--text3); font-family: var(--font-mono); margin-bottom: 8px; }
+  .forecast-day .f-val { font-family: var(--font-mono); font-size: 14px; font-weight: 600; }
+  .forecast-day .f-trend { font-size: 11px; margin-top: 4px; }
+  .forecast-day.highlight { border-color: rgba(0,212,255,0.4); background: rgba(0,212,255,0.05); }
+
+  /* RESPONSIVE */
+  @media (max-width: 1200px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .news-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">⛽</div>
+    <div class="logo-title">FUEL ANALYTICS<br>INDIA</div>
+    <div class="logo-sub">GOV. INTELLIGENCE PLATFORM</div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Analytics</div>
+    <div class="nav-item active" onclick="showPage('national')">
+      <span class="nav-icon">📊</span> National Overview
+    </div>
+    <div class="nav-item" onclick="showPage('states')">
+      <span class="nav-icon">🗺️</span> State Analysis
+    </div>
+    <div class="nav-item" onclick="showPage('affordability')">
+      <span class="nav-icon">💡</span> Affordability
+    </div>
+    <div class="nav-item" onclick="showPage('alerts')">
+      <span class="nav-icon">🚨</span> Alerts & Anomalies
+      <span class="nav-badge">7</span>
+    </div>
+    <div class="nav-item" onclick="showPage('news')">
+      <span class="nav-icon">📰</span> News & Sentiment
+    </div>
+  </div>
+  <div class="sidebar-footer">
+    <div><span class="status-dot"></span>LIVE FEED ACTIVE</div>
+    <div>Last sync: 2 min ago</div>
+    <div>Data: Apr 2026</div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="page-title">National Overview</div>
+      <div class="topbar-meta">MINISTRY OF PETROLEUM & NATURAL GAS — INDIA</div>
+    </div>
+    <div class="topbar-right">
+      <div class="live-badge"><span class="status-dot"></span>LIVE</div>
+      <div class="date-badge">07 APR 2026 · 09:45 IST</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- PAGE 1: NATIONAL OVERVIEW -->
+    <div class="page active" id="page-national">
+      <div class="section-header">
+        <div class="section-title">National <span>Overview</span></div>
+        <div class="section-sub">Real-time fuel pricing data across 15 states · India</div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi-card blue">
+          <div class="kpi-icon">⛽</div>
+          <div class="kpi-label">Petrol — National Avg</div>
+          <div class="kpi-value">₹<span>103.50</span><span class="kpi-unit">/L</span></div>
+          <div class="kpi-change up">▲ +0.8% · ₹0.82 weekly</div>
+        </div>
+        <div class="kpi-card orange">
+          <div class="kpi-icon">🚛</div>
+          <div class="kpi-label">Diesel — National Avg</div>
+          <div class="kpi-value">₹<span>90.14</span><span class="kpi-unit">/L</span></div>
+          <div class="kpi-change up">▲ +1.2% · ₹3.8% above avg</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-icon">🍳</div>
+          <div class="kpi-label">LPG — 14.2 kg Cylinder</div>
+          <div class="kpi-value">₹<span>912</span><span class="kpi-unit">/cyl</span></div>
+          <div class="kpi-change up">▲ +₹15.50 · High volatility</div>
+        </div>
+        <div class="kpi-card red">
+          <div class="kpi-icon">📈</div>
+          <div class="kpi-label">Fuel CPI Contribution</div>
+          <div class="kpi-value"><span>2.4</span><span class="kpi-unit">%</span></div>
+          <div class="kpi-change neutral">── Inflation impact index</div>
+        </div>
+      </div>
+
+      <!-- CHARTS ROW -->
+      <div class="chart-grid">
+        <div class="chart-card full-chart">
+          <div class="chart-title">30-Day Price Trend</div>
+          <div class="chart-sub">PETROL · DIESEL · LPG (normalized)</div>
+          <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Fuel Mix Contribution</div>
+          <div class="chart-sub">VOLUME SHARE BY FUEL TYPE</div>
+          <div class="chart-wrap"><canvas id="donutChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- MINI STATS -->
+      <div class="grid-3">
+        <div class="chart-card">
+          <div class="chart-title">Weekly Volatility Index</div>
+          <div class="chart-sub">PRICE FLUCTUATION SCORE</div>
+          <div style="margin-top:16px">
+            <div class="mini-stat"><span class="mini-stat-label">Petrol</span><span class="mini-stat-val" style="color:var(--warning)">6.2 / 10</span></div>
+            <div class="mini-stat"><span class="mini-stat-label">Diesel</span><span class="mini-stat-val" style="color:var(--accent3)">3.8 / 10</span></div>
+            <div class="mini-stat"><span class="mini-stat-label">LPG</span><span class="mini-stat-val" style="color:var(--danger)">8.9 / 10</span></div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Subsidy Disbursed</div>
+          <div class="chart-sub">CURRENT MONTH · CRORE INR</div>
+          <div style="margin-top:16px">
+            <div class="mini-stat"><span class="mini-stat-label">LPG Subsidy</span><span class="mini-stat-val" style="color:var(--accent)">₹4,280 Cr</span></div>
+            <div class="mini-stat"><span class="mini-stat-label">Diesel Subsidy</span><span class="mini-stat-val" style="color:var(--accent)">₹1,920 Cr</span></div>
+            <div class="mini-stat"><span class="mini-stat-label">Total Disbursed</span><span class="mini-stat-val" style="color:var(--accent3)">₹6,200 Cr</span></div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">30-Day Forecast</div>
+          <div class="chart-sub">ML PRICE PREDICTION</div>
+          <div style="margin-top:16px">
+            <div class="mini-stat"><span class="mini-stat-label">Petrol (Apr 30)</span><span class="mini-stat-val" style="color:var(--warning)">₹105.20</span></div>
+            <div class="mini-stat"><span class="mini-stat-label">Diesel (Apr 30)</span><span class="mini-stat-val" style="color:var(--warning)">₹91.80</span></div>
+            <div class="mini-stat"><span class="mini-stat-label">LPG (Apr 30)</span><span class="mini-stat-val" style="color:var(--danger)">₹928</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE 2: STATE ANALYSIS -->
+    <div class="page" id="page-states">
+      <div class="section-header">
+        <div class="section-title">State-wise <span>Analysis</span></div>
+        <div class="section-sub">Fuel pricing across 15 major Indian states · Sorted by affordability</div>
+      </div>
+
+      <div class="filter-row">
+        <button class="filter-btn active">All Fuels</button>
+        <button class="filter-btn">Petrol</button>
+        <button class="filter-btn">Diesel</button>
+        <button class="filter-btn">LPG</button>
+        <button class="filter-btn">Most Expensive</button>
+        <button class="filter-btn">Most Affordable</button>
+      </div>
+
+      <div class="chart-grid" style="margin-bottom:20px">
+        <div class="chart-card">
+          <div class="chart-title">Top 10 States — Petrol Price</div>
+          <div class="chart-sub">INR PER LITRE · APRIL 2026</div>
+          <div class="chart-wrap" style="height:260px"><canvas id="stateBarChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Regional Price Spread</div>
+          <div class="chart-sub">VARIANCE FROM NATIONAL AVERAGE</div>
+          <div class="chart-wrap" style="height:260px"><canvas id="radarChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-head">
+          <div>
+            <div class="chart-title">Complete State Data</div>
+            <div class="chart-sub" style="margin:0">15 STATES · PETROL · DIESEL · LPG · AFFORDABILITY INDEX</div>
+          </div>
+          <span class="tag">Updated Apr 7, 2026</span>
+        </div>
+        <table>
+          <thead><tr>
+            <th>#</th><th>State</th><th>Petrol ₹/L</th><th>Diesel ₹/L</th><th>LPG ₹/Cyl</th><th>Afford. Index</th><th>Stress Level</th>
+          </tr></thead>
+          <tbody id="stateTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PAGE 3: AFFORDABILITY -->
+    <div class="page" id="page-affordability">
+      <div class="section-header">
+        <div class="section-title">Affordability <span>&amp; Subsidy</span></div>
+        <div class="section-sub">Energy Stress Index · LPG cost as % of monthly household income</div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi-card red">
+          <div class="kpi-icon">😰</div>
+          <div class="kpi-label">Highest Stress State</div>
+          <div class="kpi-value" style="font-size:22px">West Bengal</div>
+          <div class="kpi-change up">3.14% of monthly income</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-icon">😊</div>
+          <div class="kpi-label">Lowest Stress State</div>
+          <div class="kpi-value" style="font-size:22px">Goa</div>
+          <div class="kpi-change down">▼ 1.12% of monthly income</div>
+        </div>
+        <div class="kpi-card orange">
+          <div class="kpi-icon">📊</div>
+          <div class="kpi-label">National Avg Energy Stress</div>
+          <div class="kpi-value"><span>2.1</span><span class="kpi-unit">%</span></div>
+          <div class="kpi-change neutral">── Income-adjusted metric</div>
+        </div>
+        <div class="kpi-card blue">
+          <div class="kpi-icon">🏛️</div>
+          <div class="kpi-label">States Needing Intervention</div>
+          <div class="kpi-value"><span>6</span><span class="kpi-unit"> states</span></div>
+          <div class="kpi-change up">▲ Stress index &gt; 2.5%</div>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-title">Income vs LPG Cost by State</div>
+          <div class="chart-sub">MONTHLY INCOME · LPG MONTHLY COST · INR</div>
+          <div class="chart-wrap" style="height:260px"><canvas id="incomeChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Subsidy Distribution</div>
+          <div class="chart-sub">INR PER HOUSEHOLD · BY STATE</div>
+          <div class="chart-wrap" style="height:260px"><canvas id="subsidyChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="chart-card" style="margin-bottom:24px">
+        <div class="chart-title" style="margin-bottom:4px">State Energy Stress Rankings</div>
+        <div class="chart-sub" style="margin-bottom:20px">ENERGY STRESS INDEX = (LPG PRICE / AVG MONTHLY INCOME) × 100</div>
+        <div id="stressMeters"></div>
+      </div>
+    </div>
+
+    <!-- PAGE 4: ALERTS -->
+    <div class="page" id="page-alerts">
+      <div class="section-header">
+        <div class="section-title">Alerts <span>&amp; Anomalies</span></div>
+        <div class="section-sub">Real-time detection of price spikes and supply disruptions</div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi-card red">
+          <div class="kpi-label">High Priority</div>
+          <div class="kpi-value">3</div>
+          <div class="kpi-change up">▲ Requires immediate action</div>
+        </div>
+        <div class="kpi-card orange">
+          <div class="kpi-label">Medium Priority</div>
+          <div class="kpi-value">2</div>
+          <div class="kpi-change neutral">── Monitor closely</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-label">Low Priority</div>
+          <div class="kpi-value">2</div>
+          <div class="kpi-change down">▼ Informational</div>
+        </div>
+        <div class="kpi-card blue">
+          <div class="kpi-label">Resolved (24h)</div>
+          <div class="kpi-value">11</div>
+          <div class="kpi-change down">▼ Auto-resolved</div>
+        </div>
+      </div>
+
+      <div class="filter-row">
+        <button class="filter-btn active">All Alerts</button>
+        <button class="filter-btn">🔴 High</button>
+        <button class="filter-btn">🟡 Medium</button>
+        <button class="filter-btn">🟢 Low</button>
+        <button class="filter-btn">Supply Disruption</button>
+        <button class="filter-btn">Price Spike</button>
+      </div>
+
+      <div id="alertFeed"></div>
+
+      <div class="chart-card">
+        <div class="chart-title">Alert Frequency — Last 14 Days</div>
+        <div class="chart-sub">HIGH · MEDIUM · LOW ALERTS PER DAY</div>
+        <div class="chart-wrap" style="height:200px"><canvas id="alertChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- PAGE 5: NEWS & SENTIMENT -->
+    <div class="page" id="page-news">
+      <div class="section-header">
+        <div class="section-title">News <span>&amp; Sentiment</span></div>
+        <div class="section-sub">Sentiment-analyzed fuel & energy news from major Indian outlets</div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi-card red">
+          <div class="kpi-label">Negative Sentiment</div>
+          <div class="kpi-value">42<span class="kpi-unit">%</span></div>
+          <div class="kpi-change up">▲ Rising consumer concern</div>
+        </div>
+        <div class="kpi-card blue">
+          <div class="kpi-label">Neutral Coverage</div>
+          <div class="kpi-value">35<span class="kpi-unit">%</span></div>
+          <div class="kpi-change neutral">── Factual reporting</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-label">Positive Sentiment</div>
+          <div class="kpi-value">23<span class="kpi-unit">%</span></div>
+          <div class="kpi-change down">▼ Policy support stories</div>
+        </div>
+        <div class="kpi-card orange">
+          <div class="kpi-label">Total Articles (7d)</div>
+          <div class="kpi-value">284</div>
+          <div class="kpi-change neutral">── 6 major sources</div>
+        </div>
+      </div>
+
+      <div class="filter-row">
+        <button class="filter-btn active">All News</button>
+        <button class="filter-btn">😡 Negative</button>
+        <button class="filter-btn">😐 Neutral</button>
+        <button class="filter-btn">😊 Positive</button>
+        <button class="filter-btn">LPG</button>
+        <button class="filter-btn">Petrol</button>
+        <button class="filter-btn">Policy</button>
+      </div>
+
+      <div class="chart-grid" style="margin-bottom:24px">
+        <div class="chart-card">
+          <div class="chart-title">Sentiment Trend — 30 Days</div>
+          <div class="chart-sub">POSITIVE · NEUTRAL · NEGATIVE ARTICLE VOLUME</div>
+          <div class="chart-wrap"><canvas id="sentimentChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Coverage by Source</div>
+          <div class="chart-sub">ARTICLE VOLUME BY OUTLET</div>
+          <div class="chart-wrap"><canvas id="sourceChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="news-grid" id="newsGrid"></div>
+    </div>
+
+  </div><!-- /content -->
+</main>
+
+<script>
+// ─── DATA ───────────────────────────────────────────────────────────────────
+const states = [
+  { name:'Maharashtra', petrol:107.24, diesel:93.12, lpg:942, index:0.58, stress:'High' },
+  { name:'West Bengal', petrol:106.81, diesel:92.55, lpg:958, index:0.52, stress:'High' },
+  { name:'Rajasthan',   petrol:108.48, diesel:93.76, lpg:936, index:0.55, stress:'High' },
+  { name:'Telangana',   petrol:109.66, diesel:97.82, lpg:928, index:0.54, stress:'High' },
+  { name:'Karnataka',   petrol:101.94, diesel:87.89, lpg:908, index:0.67, stress:'Medium' },
+  { name:'Tamil Nadu',  petrol:100.76, diesel:86.47, lpg:902, index:0.69, stress:'Medium' },
+  { name:'Kerala',      petrol:107.71, diesel:96.52, lpg:920, index:0.63, stress:'Medium' },
+  { name:'Gujarat',     petrol:96.63,  diesel:92.38, lpg:896, index:0.72, stress:'Medium' },
+  { name:'Punjab',      petrol:99.72,  diesel:90.93, lpg:889, index:0.71, stress:'Low' },
+  { name:'Haryana',     petrol:96.82,  diesel:89.96, lpg:886, index:0.74, stress:'Low' },
+  { name:'Delhi',       petrol:94.77,  diesel:87.67, lpg:878, index:0.78, stress:'Low' },
+  { name:'Himachal',    petrol:95.12,  diesel:86.81, lpg:875, index:0.79, stress:'Low' },
+  { name:'Madhya P.',   petrol:108.65, diesel:93.52, lpg:930, index:0.56, stress:'High' },
+  { name:'Odisha',      petrol:103.14, diesel:90.34, lpg:915, index:0.62, stress:'Medium' },
+  { name:'Goa',         petrol:94.22,  diesel:84.91, lpg:862, index:0.85, stress:'Low' },
+];
+
+const stressData = [
+  { state:'West Bengal', val:3.14 }, { state:'Rajasthan', val:2.98 },
+  { state:'Madhya P.', val:2.87 },   { state:'Telangana', val:2.72 },
+  { state:'Maharashtra', val:2.65 }, { state:'Odisha', val:2.54 },
+  { state:'Kerala', val:2.31 },      { state:'Karnataka', val:2.14 },
+  { state:'Tamil Nadu', val:1.98 },  { state:'Gujarat', val:1.74 },
+  { state:'Punjab', val:1.61 },      { state:'Haryana', val:1.48 },
+  { state:'Delhi', val:1.32 },       { state:'Himachal', val:1.21 },
+  { state:'Goa', val:1.12 },
+];
+
+const alerts = [
+  { priority:'high', icon:'🔴', title:'Petrol Price Spike — Maharashtra', desc:'5.2% increase detected in Maharashtra petrol prices above national average. Immediate review recommended.', meta:'Petrol · Maharashtra · Price Spike', time:'12 min ago', change:'+5.2%' },
+  { priority:'high', icon:'🔴', title:'Supply Disruption — Rajasthan Depot', desc:'LPG supply disruption reported at Jaipur distribution center. 3-day shortage estimated for 4 districts.', meta:'LPG · Rajasthan · Supply Chain', time:'1 hr ago', change:'DISRUPTION' },
+  { priority:'high', icon:'🔴', title:'Diesel Surge — Telangana', desc:'Diesel prices 3.8% above national average for 5 consecutive days. Consumer impact escalating.', meta:'Diesel · Telangana · Sustained Spike', time:'2 hr ago', change:'+3.8%' },
+  { priority:'medium', icon:'🟡', title:'LPG Price Volatility — West Bengal', desc:'LPG prices showing unusual weekly oscillation pattern. Energy stress index now at 3.14%.', meta:'LPG · West Bengal · Volatility Alert', time:'4 hr ago', change:'ESI: 3.14%' },
+  { priority:'medium', icon:'🟡', title:'CNG Shortage Warning — Delhi NCR', desc:'CNG availability dropping below threshold at 12 stations across Delhi. Monitoring active.', meta:'CNG · Delhi · Availability', time:'6 hr ago', change:'12 stations' },
+  { priority:'low', icon:'🟢', title:'Petrol Prices Stabilizing — Goa', desc:'Goa petrol prices stabilized at lowest national level. Positive affordability signal.', meta:'Petrol · Goa · Stabilization', time:'9 hr ago', change:'₹94.22' },
+  { priority:'low', icon:'🟢', title:'Subsidy Disbursed — LPG Q1 2026', desc:'Q1 2026 LPG subsidy of ₹4,280 Crore successfully distributed to 8.2 crore beneficiaries.', meta:'LPG Subsidy · National · Distribution', time:'1 day ago', change:'₹4,280 Cr' },
+];
+
+const news = [
+  { img:'https://images.unsplash.com/photo-1759499693571-7f1ccac5b51e?w=400&q=80', source:'Times of India', headline:'LPG cylinder prices touch 3-year high amid global crude volatility', sentiment:'negative', time:'2 hr ago' },
+  { img:'https://images.unsplash.com/photo-1760036455561-3044404472db?w=400&q=80', source:'The Hindu', headline:'Government announces ₹200 additional LPG subsidy for BPL households', sentiment:'positive', time:'5 hr ago' },
+  { img:'https://images.unsplash.com/photo-1649273322030-efe0de7b5170?w=400&q=80', source:'Economic Times', headline:'Maharashtra petrol prices spike 5.2% — commuters bear brunt', sentiment:'negative', time:'8 hr ago' },
+  { img:'https://images.unsplash.com/photo-1759499693571-7f1ccac5b51e?w=400&q=80', source:'Mint', headline:'IOC, BPCL report steady diesel margins in Q4 FY2026', sentiment:'neutral', time:'1 day ago' },
+  { img:'https://images.unsplash.com/photo-1760036455561-3044404472db?w=400&q=80', source:'NDTV Profit', headline:'Rajasthan LPG disruption: State government activates emergency reserves', sentiment:'neutral', time:'1 day ago' },
+  { img:'https://images.unsplash.com/photo-1649273322030-efe0de7b5170?w=400&q=80', source:'Business Standard', headline:'India fuel subsidy bill may exceed ₹75,000 Cr in FY2027 projections', sentiment:'negative', time:'2 days ago' },
+];
+
+// ─── NAVIGATION ─────────────────────────────────────────────────────────────
+const pageTitles = { national:'National Overview', states:'State-wise Analysis', affordability:'Affordability & Subsidy', alerts:'Alerts & Anomalies', news:'News & Sentiment' };
+let chartsInit = {};
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => { if(n.textContent.toLowerCase().includes(pageTitles[id].split(' ')[0].toLowerCase())) n.classList.add('active'); });
+  document.querySelectorAll('.nav-item')[['national','states','affordability','alerts','news'].indexOf(id)].classList.add('active');
+  document.getElementById('page-title').textContent = pageTitles[id];
+  if(!chartsInit[id]) { initCharts(id); chartsInit[id]=true; }
+}
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    this.closest('.filter-row').querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+
+// ─── RENDER: STATE TABLE ────────────────────────────────────────────────────
+const tbl = document.getElementById('stateTable');
+states.forEach((s, i) => {
+  const badgeClass = s.stress === 'High' ? 'red' : s.stress === 'Medium' ? 'yellow' : 'green';
+  tbl.innerHTML += `<tr>
+    <td><span class="rank">${String(i+1).padStart(2,'0')}</span></td>
+    <td><b>${s.name}</b></td>
+    <td class="mono">₹${s.petrol}</td>
+    <td class="mono">₹${s.diesel}</td>
+    <td class="mono">₹${s.lpg}</td>
+    <td class="mono">${s.index.toFixed(2)}</td>
+    <td><span class="badge ${badgeClass}">${s.stress}</span></td>
+  </tr>`;
+});
+
+// ─── RENDER: ALERTS ─────────────────────────────────────────────────────────
+const feed = document.getElementById('alertFeed');
+alerts.forEach(a => {
+  const badgeClass = a.priority === 'high' ? 'red' : a.priority === 'medium' ? 'yellow' : 'green';
+  feed.innerHTML += `<div class="alert-item ${a.priority}">
+    <div class="alert-icon">${a.icon}</div>
+    <div class="alert-body">
+      <div class="alert-title">${a.title}</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:6px;line-height:1.5">${a.desc}</div>
+      <div class="alert-meta">${a.meta}</div>
+    </div>
+    <div class="alert-right">
+      <span class="badge ${badgeClass}">${a.change}</span>
+      <span class="alert-time">${a.time}</span>
+      <span class="badge blue" style="cursor:pointer">View →</span>
+    </div>
+  </div>`;
+});
+
+// ─── RENDER: NEWS ───────────────────────────────────────────────────────────
+const ng = document.getElementById('newsGrid');
+news.forEach(n => {
+  const sc = n.sentiment === 'negative' ? 'red' : n.sentiment === 'positive' ? 'green' : 'blue';
+  const si = n.sentiment === 'negative' ? '😡' : n.sentiment === 'positive' ? '😊' : '😐';
+  ng.innerHTML += `<div class="news-card">
+    <img class="news-img" src="${n.img}" alt="${n.headline}" onerror="this.style.background='var(--surface2)';this.src=''">
+    <div class="news-body">
+      <div class="news-source">${n.source}</div>
+      <div class="news-headline">${n.headline}</div>
+      <div class="news-footer">
+        <span class="badge ${sc}">${si} ${n.sentiment.toUpperCase()}</span>
+        <span class="news-time">${n.time}</span>
+      </div>
+    </div>
+  </div>`;
+});
+
+// ─── RENDER: STRESS METERS ───────────────────────────────────────────────────
+const sm = document.getElementById('stressMeters');
+stressData.forEach(s => {
+  const pct = Math.min((s.val / 4) * 100, 100);
+  const col = s.val > 2.5 ? 'var(--danger)' : s.val > 1.5 ? 'var(--warning)' : 'var(--accent3)';
+  const bc = s.val > 2.5 ? 'red' : s.val > 1.5 ? 'yellow' : 'green';
+  sm.innerHTML += `<div style="display:flex;align-items:center;gap:16px;margin-bottom:12px">
+    <div style="width:110px;font-size:13px;color:var(--text2)">${s.state}</div>
+    <div style="flex:1;height:8px;background:var(--surface2);border-radius:4px;overflow:hidden">
+      <div style="width:${pct}%;height:100%;background:${col};border-radius:4px;transition:width 0.6s"></div>
+    </div>
+    <div style="width:40px;font-family:var(--font-mono);font-size:12px;text-align:right;color:${col}">${s.val}%</div>
+    <span class="badge ${bc}" style="width:56px;justify-content:center">${s.val > 2.5 ? 'HIGH' : s.val > 1.5 ? 'MED' : 'LOW'}</span>
+  </div>`;
+});
+
+// ─── CHARTS ─────────────────────────────────────────────────────────────────
+const chartDefaults = {
+  color: '#8B9BB4',
+  font: { family: "'JetBrains Mono', monospace", size: 10 }
+};
+
+function mkGrid() {
+  return { color: 'rgba(30,45,69,0.6)', drawBorder: false };
+}
+function mkTick() {
+  return { color: '#4A5A72', font: { family: "'JetBrains Mono', monospace", size: 10 } };
+}
+
+function initCharts(page) {
+  if(page === 'national') {
+    // TREND CHART
+    const days = Array.from({length:30}, (_,i) => { const d=new Date(); d.setDate(d.getDate()-29+i); return d.toLocaleDateString('en',{day:'2-digit',month:'short'}); });
+    const petrolData = days.map((_,i) => 100 + Math.sin(i/4)*2 + i*0.12 + Math.random()*0.5);
+    const dieselData = days.map((_,i) => 87 + Math.cos(i/5)*1.5 + i*0.1 + Math.random()*0.4);
+    const lpgNorm = days.map((_,i) => 88 + Math.sin(i/3)*3 + i*0.14 + Math.random()*0.6);
+
+    new Chart(document.getElementById('trendChart'), {
+      type:'line',
+      data: { labels: days, datasets: [
+        { label:'Petrol', data:petrolData, borderColor:'#00D4FF', backgroundColor:'rgba(0,212,255,0.06)', tension:0.4, borderWidth:2, pointRadius:0, fill:true },
+        { label:'Diesel', data:dieselData, borderColor:'#FF6B35', backgroundColor:'rgba(255,107,53,0.06)', tension:0.4, borderWidth:2, pointRadius:0, fill:true },
+        { label:'LPG (norm)', data:lpgNorm, borderColor:'#00FF87', backgroundColor:'rgba(0,255,135,0.04)', tension:0.4, borderWidth:2, pointRadius:0, fill:true },
+      ]},
+      options: { responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+        plugins: { legend:{ labels:{ color:'#8B9BB4', font:{family:"'JetBrains Mono'",size:10}, boxWidth:12, padding:16 } }, tooltip:{ backgroundColor:'#1A2236', borderColor:'#1E2D45', borderWidth:1, titleColor:'#E8EDF5', bodyColor:'#8B9BB4', titleFont:{family:"'JetBrains Mono'",size:11} } },
+        scales: { x:{ grid:mkGrid(), ticks:{...mkTick(),maxTicksLimit:8} }, y:{ grid:mkGrid(), ticks:mkTick() } }
+      }
+    });
+
+    // DONUT
+    new Chart(document.getElementById('donutChart'), {
+      type:'doughnut',
+      data: { labels:['Petrol','Diesel','LPG','CNG'], datasets:[{ data:[38,42,16,4], backgroundColor:['#00D4FF','#FF6B35','#00FF87','#FFB800'], borderWidth:0, hoverOffset:6 }] },
+      options: { responsive:true, maintainAspectRatio:false, cutout:'72%',
+        plugins: { legend:{ position:'bottom', labels:{ color:'#8B9BB4', font:{family:"'JetBrains Mono'",size:10}, padding:12, boxWidth:10 } }, tooltip:{ backgroundColor:'#1A2236', borderColor:'#1E2D45', borderWidth:1 } }
+      }
+    });
+  }
+
+  if(page === 'states') {
+    const top10 = states.slice(0,10);
+    new Chart(document.getElementById('stateBarChart'), {
+      type:'bar',
+      data: { labels: top10.map(s=>s.name), datasets:[{ label:'Petrol ₹/L', data:top10.map(s=>s.petrol), backgroundColor: top10.map(s => s.stress==='High'?'rgba(255,59,92,0.7)':s.stress==='Medium'?'rgba(255,184,0,0.7)':'rgba(0,255,135,0.7)'), borderRadius:4, borderWidth:0 }] },
+      options: { responsive:true, maintainAspectRatio:false, indexAxis:'y',
+        plugins: { legend:{display:false}, tooltip:{ backgroundColor:'#1A2236', borderColor:'#1E2D45', borderWidth:1 } },
+        scales: { x:{ grid:mkGrid(), ticks:mkTick(), min:90, max:112 }, y:{ grid:{display:false}, ticks:mkTick() } }
+      }
+    });
+
+    new Chart(document.getElementById('radarChart'), {
+      type:'radar',
+      data: { labels:['North','South','East','West','Central','NE'],
+        datasets:[
+          { label:'Petrol', data:[96,102,107,97,109,94], borderColor:'#00D4FF', backgroundColor:'rgba(0,212,255,0.1)', borderWidth:2, pointRadius:3, pointBackgroundColor:'#00D4FF' },
+          { label:'LPG', data:[88,94,98,92,103,85], borderColor:'#FF6B35', backgroundColor:'rgba(255,107,53,0.1)', borderWidth:2, pointRadius:3, pointBackgroundColor:'#FF6B35' }
+        ]
+      },
+      options: { responsive:true, maintainAspectRatio:false,
+        plugins: { legend:{ labels:{ color:'#8B9BB4', font:{family:"'JetBrains Mono'",size:10}, boxWidth:10 } } },
+        scales: { r:{ grid:{color:'rgba(30,45,69,0.8)'}, pointLabels:{ color:'#8B9BB4', font:{family:"'JetBrains Mono'",size:10} }, ticks:{ display:false }, angleLines:{color:'rgba(30,45,69,0.8)'}, suggestedMin:80, suggestedMax:115 } }
+      }
+    });
+  }
+
+  if(page === 'affordability') {
+    const top8 = stressData.slice(0,8);
+    new Chart(document.getElementById('incomeChart'), {
+      type:'bar',
+      data: { labels: top8.map(s=>s.state),
+        datasets:[
+          { label:'Avg Monthly Income', data:[18500,17200,16800,22000,19500,21000,20500,25000], backgroundColor:'rgba(0,212,255,0.2)', borderColor:'#00D4FF', borderWidth:1, borderRadius:4 },
+          { label:'LPG Monthly Cost', data:[582,576,564,556,552,548,546,528], backgroundColor:'rgba(255,59,92,0.5)', borderColor:'var(--danger)', borderWidth:1, borderRadius:4 }
+        ]
+      },
+      options: { responsive:true, maintainAspectRatio:false,
+        plugins: { legend:{ labels:{ color:'#8B9BB4', font:{family:"'JetBrains Mono'",size:10}, boxWidth:10, padding:12 } }, tooltip:{ backgroundColor:'#1A2236', borderColor:'#1E2D45', borderWidth:1 } },
+        scales: { x:{ grid:{display:false}, ticks:mkTick() }, y:{ grid:mkGrid(), ticks:mkTick() } }
+      }
+    });
+
+    new Chart(document.getElementById('subsidyChart'), {
+      type:'bar',
+      data: { labels: states.slice(0,8).map(s=>s.name),
+        datasets:[{ label:'Subsidy ₹/household', data:[285,265,275,250,220,210,300,195], backgroundColor:'rgba(0,255,135,0.3)', borderColor:'#00FF87', borderWidth:1, borderRadius:4 }]
+      },
+      options: { responsive:true, maintainAspectRatio:false,
+        plugins: { legend:{display:false}, tooltip:{ backgroundColor:'#1A2236', borderColor:'#1E2D45', borderWidth:1 } },
+        scales: { x:{ grid:{display:false}, ticks:mkTick() }, y:{ grid:mkGrid(), ticks:mkTick(), min:150 } }
+      }
+    });
+  }
+
+  if(page === 'alerts') {
+    const days = Array.from({length:14},(_,i)=>{const d=new Date();d.setDate(d.getDate()-13+i);return d.toLocaleDateString('en',{day:'2-digit',month:'short'});});
+    new Chart(document.getElementById('alertChart'), {
+      type:'bar',
+      data: { labels:days,
+        datasets:[
+          { label:'High', data:[2,1,3,1,2,4,1,2,3,2,1,3,3,2], backgroundColor:'rgba(255,59,92,0.7)', borderRadius:3 },
+          { label:'Medium', data:[1,2,1,3,1,2,1,1,2,1,2,2,2,1], backgroundColor:'rgba(255,184,0,0.6)', borderRadius:3 },
+          { label:'Low', data:[3,2,4,2,3,1,2,3,1,2,1,2,2,2], backgroundColor:'rgba(0,255,135,0.5)', borderRadius:3 }
+        ]
+      },
+      options: { responsive:true, maintainAspectRatio:false, stacked:true,
+        plugins: { legend:{ labels:{ color:'#8B9BB4', font:{family:"'JetBrains Mono'",size:10}, boxWidth:10, padding:12 } } },
+        scales: { x:{ grid:{display:false}, ticks:mkTick(), stacked:true }, y:{ grid:mkGrid(), ticks:mkTick(), stacked:true } }
+      }
+    });
+  }
+
+  if(page === 'news') {
+    const days = Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-29+i);return d.toLocaleDateString('en',{day:'2-digit',month:'short'});});
+    new Chart(document.getElementById('sentimentChart'), {
+      type:'line',
+      data: { labels:days, datasets:[
+        { label:'Negative', data:days.map(()=>Math.floor(Math.random()*15+8)), borderColor:'#FF3B5C', backgroundColor:'rgba(255,59,92,0.08)', tension:0.4, borderWidth:2, pointRadius:0, fill:true },
+        { label:'Neutral', data:days.map(()=>Math.floor(Math.random()*10+8)), borderColor:'#00D4FF', backgroundColor:'rgba(0,212,255,0.06)', tension:0.4, borderWidth:2, pointRadius:0, fill:true },
+        { label:'Positive', data:days.map(()=>Math.floor(Math.random()*8+4)), borderColor:'#00FF87', backgroundColor:'rgba(0,255,135,0.06)', tension:0.4, borderWidth:2, pointRadius:0, fill:true },
+      ]},
+      options: { responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+        plugins: { legend:{ labels:{ color:'#8B9BB4', font:{family:"'JetBrains Mono'",size:10}, boxWidth:10, padding:12 } }, tooltip:{ backgroundColor:'#1A2236', borderColor:'#1E2D45', borderWidth:1 } },
+        scales: { x:{ grid:mkGrid(), ticks:{...mkTick(),maxTicksLimit:8} }, y:{ grid:mkGrid(), ticks:mkTick() } }
+      }
+    });
+
+    new Chart(document.getElementById('sourceChart'), {
+      type:'doughnut',
+      data: { labels:['Times of India','The Hindu','Economic Times','Mint','NDTV Profit','Biz Standard'],
+        datasets:[{ data:[54,48,62,38,44,38], backgroundColor:['#00D4FF','#FF6B35','#FF3B5C','#00FF87','#FFB800','#8B5CF6'], borderWidth:0, hoverOffset:6 }]
+      },
+      options: { responsive:true, maintainAspectRatio:false, cutout:'65%',
+        plugins: { legend:{ position:'bottom', labels:{ color:'#8B9BB4', font:{family:"'JetBrains Mono'",size:9}, padding:8, boxWidth:8 } } }
+      }
+    });
+  }
+}
+
+// Init first page charts
+initCharts('national');
+chartsInit['national'] = true;
+</script>
+</body>
+</html>
