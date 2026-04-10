@@ -120,7 +120,7 @@ Higher percentage indicates higher financial burden on households.
 
 ## 🌐 Live Demo
 
-👉 https://fuel-tracker-india.preview.emergentagent.com/
+👉 https://fuel-lpg-intelligence-dashboard-p9r.vercel.app/
 
 ---
 
